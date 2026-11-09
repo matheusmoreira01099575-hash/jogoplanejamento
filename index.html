@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Stardew TGDQ: Edição Final Google SENAI</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+        
+        :root {
+            --ui-bg: rgba(18, 14, 10, 0.95);
+            --ui-border: #8f6236;
+            --ui-text: #f0e6d2;
+            --ui-gold: #ffd700;
+            --ui-danger: #e74c3c;
+            --ui-hover: #b58d5c;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background-color: #050505; display: flex; 
+            justify-content: center; align-items: center; height: 100vh;
+            font-family: 'VT323', monospace; color: var(--ui-text); user-select: none; overflow: hidden;
+        }
+
+        #game-container { 
+            position: relative; width: 1024px; height: 768px; 
+            box-shadow: 0 0 50px rgba(0,0,0,0.9); border: 4px solid var(--ui-border); 
+            background: #000; overflow: hidden;
+        }
+        
+        canvas { display: block; image-rendering: pixelated; }
+        
+        /* --- HUD --- */
+        #hud-top { position: absolute; top: 15px; left: 15px; right: 15px; display: flex; justify-content: space-between; pointer-events: none; z-index: 10; }
+        .box { background: var(--ui-bg); padding: 10px 15px; border: 3px solid var(--ui-border); border-radius: 6px; font-size: 19px; box-shadow: 4px 4px 0 rgba(0,0,0,0.6); pointer-events: auto; }
+        #inventory-list { color: #a3c2c2; font-size: 16px; margin-top:4px; line-height: 1.2; }
+        #hearts-display { color: var(--ui-danger); font-size: 26px; letter-spacing: 2px; text-shadow: 2px 2px 0 #000; }
+        
+        #hud-bottom { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; z-index: 10; }
+        .tool-slot { width: 52px; height: 52px; background: #e6c598; border: 4px solid #8f6236; display: flex; justify-content: center; align-items: center; font-size: 26px; border-radius: 6px; position: relative; box-shadow: 2px 2px 0 rgba(0,0,0,0.5); transition: 0.1s; }
+        .tool-slot.active { border-color: #fff; box-shadow: 0 0 15px var(--ui-gold); transform: translateY(-8px); z-index: 10; }
+        .tool-key { position: absolute; top: -10px; left: -10px; background: #222; color: #fff; font-size: 14px; padding: 2px 6px; border-radius: 50%; border: 2px solid #fff; }
+
+        /* --- MODALS --- */
+        .modal-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; z-index: 100;
+        }
+        .modal-overlay.active { display: flex; }
+        
+        .modal-box {
+            background: var(--ui-bg); border: 4px solid var(--ui-border); border-radius: 8px;
+            padding: 25px; width: 85%; max-width: 600px; box-shadow: 8px 8px 0 rgba(0,0,0,0.9);
+            text-align: center;
+        }
+
+        .modal-title { color: var(--ui-gold); font-size: 30px; margin-bottom: 12px; border-bottom: 2px solid var(--ui-border); padding-bottom: 8px; }
+        .modal-text { font-size: 20px; margin-bottom: 20px; line-height: 1.3; color: #fff; }
+        
+        .quiz-grid { display: grid; grid-template-columns: 1fr; gap: 8px; max-height: 350px; overflow-y: auto; }
+        .btn {
+            background: #2a2015; border: 2px solid var(--ui-border); color: var(--ui-text);
+            padding: 10px; font-family: inherit; font-size: 18px; cursor: pointer;
+            transition: 0.2s; text-align: left; border-radius: 4px;
+        }
+        .btn:hover { background: var(--ui-hover); color: #000; transform: scale(1.01); }
+        .btn.close-btn { background: var(--ui-danger); color: #fff; border-color: #c0392b; text-align: center; margin-top: 15px; display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="1024" height="768"></canvas>
+        
+        <div id="hud-top">
+            <div class="box">
+                <div id="hearts-display">♥️♥️♥️</div>
+                Ouro: <span id="ui-gold" style="color:var(--ui-gold);">50</span>g<br>
+                <div id="inventory-list">
+                    🌱 Sem: <span id="i-sn">10</span> | ✨ Anc: <span id="i-sa">0</span><br>
+                    🪵 Mad: <span id="i-mn">0</span> | 🔮 Mad.Anc: <span id="i-ma">0</span> | 🌴 Mad.Ouro: <span id="i-mo">0</span><br>
+                    🪓 Machado: <span id="i-axe" style="color:#f39c12;">Nível 1 (Ferro)</span> | 🛠️ Pé de Cabra: <span id="i-crowbar">Não</span>
+                </div>
+            </div>
+            <div class="box" id="quest-log" style="text-align: right; max-width: 320px;">
+                📜 Missão:<br><span style="font-size: 17px; color:#fff;">Arar terra custa 5g. Corte árvores e venda na feira!</span>
+            </div>
+        </div>
+
+        <div id="hud-bottom">
+            <div class="tool-slot active" id="tool-0"><span class="tool-key">1</span>⛏️</div>
+            <div class="tool-slot" id="tool-1"><span class="tool-key">2</span>🌱</div>
+            <div class="tool-slot" id="tool-2"><span class="tool-key">3</span>💧</div>
+            <div class="tool-slot" id="tool-3"><span class="tool-key">4</span>🪓</div>
+            <div class="tool-slot" id="tool-4"><span class="tool-key">5</span>✨</div>
+        </div>
+
+        <div id="game-modal" class="modal-overlay">
+            <div class="modal-box">
+                <div class="modal-title" id="modal-title">Título</div>
+                <div class="modal-text" id="modal-desc">Descrição...</div>
+                <div class="quiz-grid" id="modal-options"></div>
+                <button class="btn close-btn" id="modal-close" onclick="closeModal()">FECHAR</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        ctx.imageRendering = 'pixelated';
+
+        const TILE = 40;
+        const COLS = 60; 
+        const ROWS = 60;
+        const HOE_COST = 5; // Custo para arar cada bloco de horta
+
+        const TERRAIN = { GRASS: 0, DIRT: 1, WET_DIRT: 2, WATER: 3, WALL: 4, PATH: 5, DOOR_LIB: 6, DOOR_MANSION: 7, SAND: 8, DARK_GRASS: 9, DOOR_BANK: 10, DOOR_HOUSE: 11 };
+
+        let gameState = 'PLAY'; 
+        let currentScene = 'WORLD'; 
+
+        const inv = {
+            hearts: 3, gold: 50,
+            seeds: 10, specialSeeds: 0,
+            wood: 0, specialWood: 0, goldenWood: 0,
+            axeTier: 1,
+            hasCrowbar: false,
+            hasLibKey: false, hasMansionKey: false,
+            quests: { libraryDone: false, mansionDone: false },
+            housesBuilt: 1
+        };
+
+        const axeNames = ["Nível 1 (Ferro)", "Nível 2 (Bronze)", "Nível 3 (Prata)", "Nível 4 (Ouro)"];
+
+        let selectedTool = 0;
+        const keys = {};
+
+        const map = [];
+        const crops = []; 
+        const items = []; 
+        const npcs = [];
+        const buildings = [];
+        const worldTrees = [];
+
+        // 1. BIOMAS
+        for (let y = 0; y < ROWS; y++) {
+            map[y] = []; crops[y] = [];
+            for (let x = 0; x < COLS; x++) {
+                if (x > 38 && y < 25) map[y][x] = TERRAIN.SAND;
+                else if (x > 32 && y >= 32) map[y][x] = TERRAIN.DARK_GRASS;
+                else map[y][x] = TERRAIN.GRASS;
+                crops[y][x] = null;
+            }
+        }
+
+        // Fazenda Inicial
+        for(let y=12; y<20; y++) { for(let x=6; x<15; x++) map[y][x] = TERRAIN.DIRT; }
+        for(let y=12; y<28; y++) { for(let x=24; x<38; x++) map[y][x] = TERRAIN.PATH; }
+        for(let x=15; x<24; x++) map[16][x] = TERRAIN.PATH;
+
+        // 2. ESTRUTURAS
+        function addBuilding(bx, by, bw, bh, type, doorX, doorY, doorType) {
+            buildings.push({ x: bx, y: by, w: bw, h: bh, type: type });
+            for(let y=by; y<by+bh; y++) { for(let x=bx; x<bx+bw; x++) map[y][x] = TERRAIN.WALL; }
+            if(doorX !== null) map[doorY][doorX] = doorType;
+        }
+
+        addBuilding(8, 8, 5, 3, 'house', 10, 10, TERRAIN.DOOR_HOUSE); 
+        addBuilding(26, 13, 6, 4, 'shop', null, null, null); 
+        addBuilding(33, 13, 5, 4, 'ferraria', null, null, null); 
+        addBuilding(26, 20, 6, 4, 'bank', 28, 23, TERRAIN.DOOR_BANK); 
+        addBuilding(45, 45, 7, 5, 'library', 48, 49, TERRAIN.DOOR_LIB); 
+        addBuilding(45, 5, 9, 6, 'mansion', 49, 10, TERRAIN.DOOR_MANSION); 
+
+        // 3. ÁRVORES
+        for (let i = 0; i < 180; i++) {
+            let tx = Math.floor(Math.random() * COLS);
+            let ty = Math.floor(Math.random() * ROWS);
+            if (map[ty][tx] === TERRAIN.GRASS || map[ty][tx] === TERRAIN.SAND || map[ty][tx] === TERRAIN.DARK_GRASS) {
+                let type = 'normal';
+                if (map[ty][tx] === TERRAIN.SAND) type = 'palm';
+                else if (map[ty][tx] === TERRAIN.DARK_GRASS) type = 'magic';
+                if(tx > 5 && tx < 16 && ty > 8 && ty < 21) continue; 
+                worldTrees.push({ x: tx, y: ty, type: type, hp: (type==='normal'?3:(type==='palm'?5:7)) });
+            }
+        }
+
+        // 4. NPCs E ITENS
+        npcs.push({ x: 28*TILE, y: 18*TILE, name: "Mercador", type: 'buyer', color: '#8e44ad', hat: '#f1c40f' });
+        npcs.push({ x: 35*TILE, y: 18*TILE, name: "Ferreiro", type: 'smith', color: '#d35400', hat: '#7f8c8d' });
+        npcs.push({ x: 24*TILE, y: 16*TILE, name: "Prefeito", type: 'mayor', color: '#2980b9', hat: '#34495e' });
+        npcs.push({ x: 28*TILE, y: 22*TILE, name: "Banqueiro TGDQ", type: 'banker', color: '#27ae60', hat: '#2c3e50' });
+
+        items.push({ x: 55, y: 3, type: 'lib_key', color: '#ffd700' });
+
+        const player = { x: 10 * TILE, y: 12 * TILE, width: 24, height: 32, speed: 5, faceX: 0, faceY: 1, savedWorldX: 0, savedWorldY: 0 };
+
+        window.addEventListener('keydown', (e) => {
+            if(gameState !== 'PLAY') return;
+            keys[e.key.toLowerCase()] = true;
+            if (['1','2','3','4','5'].includes(e.key)) { selectedTool = parseInt(e.key) - 1; updateHUD(); }
+            if (e.code === 'Space') { interact(); keys['space'] = false; }
+        });
+        window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+
+        function updateHUD() {
+            for(let i=0; i<5; i++) document.getElementById(`tool-${i}`).classList.remove('active');
+            document.getElementById(`tool-${selectedTool}`).classList.add('active');
+
+            let heartsText = '';
+            for(let i=0; i<3; i++) heartsText += (i < inv.hearts) ? '♥️' : '🖤';
+            document.getElementById('hearts-display').innerText = heartsText;
+
+            document.getElementById('ui-gold').innerText = inv.gold;
+            document.getElementById('i-sn').innerText = inv.seeds;
+            document.getElementById('i-sa').innerText = inv.specialSeeds;
+            document.getElementById('i-mn').innerText = inv.wood;
+            document.getElementById('i-ma').innerText = inv.specialWood;
+            document.getElementById('i-mo').innerText = inv.goldenWood;
+            document.getElementById('i-axe').innerText = axeNames[inv.axeTier - 1];
+            document.getElementById('i-crowbar').innerText = inv.hasCrowbar ? "Sim 🛠️" : "Não";
+            
+            let quest = `Arar nova horta custa ${HOE_COST}g. Venda madeira na feira!`;
+            if (!inv.hasLibKey) quest = "Ache a Chave da Biblioteca (escondida no Deserto Nordeste).";
+            else if (!inv.quests.libraryDone) quest = "Destranque a Biblioteca (Floresta Sombria, Sudeste).";
+            else if (!inv.quests.mansionDone) quest = "Compre a Pé de Cabra ou junte 10.000g para abrir a Mansão (Norte).";
+            else quest = "Você é o Mestre Dev Supremo do Google!";
+            document.querySelector('#quest-log span').innerText = quest;
+        }
+
+        function showModal(title, desc, options = null, callback = null) {
+            gameState = 'MODAL';
+            document.getElementById('game-modal').classList.add('active');
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-desc').innerText = desc;
+            
+            const optContainer = document.getElementById('modal-options');
+            const closeBtn = document.getElementById('modal-close');
+            optContainer.innerHTML = '';
+
+            if (options) {
+                closeBtn.style.display = 'none';
+                options.forEach((opt, idx) => {
+                    let btn = document.createElement('button');
+                    btn.className = 'btn'; btn.innerText = opt;
+                    btn.onclick = () => {
+                        document.getElementById('game-modal').classList.remove('active');
+                        gameState = 'PLAY';
+                        if(callback) callback(idx);
+                    };
+                    optContainer.appendChild(btn);
+                });
+            } else {
+                closeBtn.style.display = 'block';
+            }
+        }
+
+        function closeModal() { document.getElementById('game-modal').classList.remove('active'); gameState = 'PLAY'; }
+
+        function takeDamage(msg) {
+            inv.hearts--; updateHUD();
+            if (inv.hearts <= 0) showModal("GAME OVER", msg + "\nVocê desmaiou de exaustão.", ["Reiniciar Jogo"], () => location.reload());
+            else showModal("ALERTA", msg + `\nRestam ${inv.hearts} ♥️.`);
+        }
+
+        function openSmithShop() {
+            let nextAxePrice = inv.axeTier * 300;
+            let options = [];
+            if(inv.axeTier < 4) options.push(`Upgrade Machado para ${axeNames[inv.axeTier]} (${nextAxePrice}g)`);
+            else options.push("Machado no Nível Máximo (Ouro)");
+            
+            if(!inv.hasCrowbar) options.push("Comprar Pé de Cabra (500g)");
+            options.push("Construir Nova Casa na Fazenda (1.500g)");
+            options.push("Sair");
+
+            showModal("FERRARIA E CONSTRUÇÃO", "Melhore o machado, compre ferramentas de invasão ou expanda sua fazenda!", options, (idx) => {
+                if(idx === 0 && inv.axeTier < 4) {
+                    if(inv.gold >= nextAxePrice) {
+                        inv.gold -= nextAxePrice; inv.axeTier++; updateHUD();
+                        showModal("FERREIRO", `Machado aprimorado para ${axeNames[inv.axeTier - 1]}!`);
+                    } else showModal("FERREIRO", "Ouro insuficiente!");
+                }
+                else if(idx === 1 && !inv.hasCrowbar) {
+                    if(inv.gold >= 500) {
+                        inv.gold -= 500; inv.hasCrowbar = true; updateHUD();
+                        showModal("FERREIRO", "Pé de Cabra adquirido! Você pode forçar portas trancadas!");
+                    } else showModal("FERREIRO", "Ouro insuficiente!");
+                }
+                else if((idx === 1 && inv.hasCrowbar) || idx === 2) {
+                    if(inv.gold >= 1500) {
+                        inv.gold -= 1500; inv.housesBuilt++;
+                        let hx = 6 + (inv.housesBuilt * 4);
+                        addBuilding(hx, 8, 3, 3, 'house', hx+1, 10, TERRAIN.DOOR_HOUSE);
+                        updateHUD();
+                        showModal("CONSTRUTOR", `Nova Casa construída na fazenda! Total: ${inv.housesBuilt}.`);
+                    } else showModal("FERREIRO", "Precisa de 1.500g para construir!");
+                }
+            });
+        }
+
+        function openBank() {
+            showModal("BANCO DE DADOS TGDQ", "Aplicação de Matemática Financeira do SENAI:", [
+                "Empréstimo Estudantil: Pegar 500g (Paga 600g com Juros)",
+                "Pagar Dívida do Banco (600g)",
+                "Sair"
+            ], (idx) => {
+                if(idx === 0) {
+                    inv.gold += 500; updateHUD();
+                    showModal("BANQUEIRO", "Empréstimo de 500g concedido!");
+                } else if(idx === 1) {
+                    if(inv.gold >= 600) {
+                        inv.gold -= 600; updateHUD();
+                        showModal("BANQUEIRO", "Dívida quitada com sucesso!");
+                    } else showModal("BANQUEIRO", "Você não tem 600g para quitar a dívida.");
+                }
+            });
+        }
+
+        function openShop() {
+            showModal("FEIRA DA CIDADE", "Compre sementes ou venda madeiras:", [
+                "Vender TODA a Madeira",
+                "Comprar Semente Normal (10g)",
+                "Comprar Semente Ancestral (50g)",
+                "Sair"
+            ], (idx) => {
+                if(idx === 0) {
+                    let total = (inv.wood*50) + (inv.specialWood*250) + (inv.goldenWood*1000);
+                    if(total > 0) {
+                        inv.gold += total; inv.wood=0; inv.specialWood=0; inv.goldenWood=0; updateHUD();
+                        showModal("MERCADOR", `Venda concluída! Ganho: ${total}g.`);
+                    } else showModal("MERCADOR", "Você não tem madeira.");
+                } 
+                else if(idx === 1 && inv.gold >= 10) { inv.gold -= 10; inv.seeds++; updateHUD(); setTimeout(openShop, 100); }
+                else if(idx === 2 && inv.gold >= 50) { inv.gold -= 50; inv.specialSeeds++; updateHUD(); setTimeout(openShop, 100); }
+            });
+        }
+
+        function triggerLibrary() {
+            showModal("TERMINAL DA BIBLIOTECA", "Para somar valores de A1 até A10 no Excel, qual a notação correta dentro de =SOMA()?",
+                ["A) =SOMA(A1;A10)", "B) =SOMA(A1:A10)", "C) =TOTAL(A1-A10)", "D) =CONT(A1:A10)"],
+                (idx) => {
+                    if(idx === 1) { 
+                        showModal("CONCEDIDO", "Você ganhou 5 Sementes Ancestrais e a Chave da Mansão!");
+                        inv.quests.libraryDone = true; inv.hasMansionKey = true; inv.specialSeeds += 5;
+                        map[49][48] = TERRAIN.PATH; updateHUD();
+                    } else takeDamage("NEGADO. Choque de segurança!");
+                }
+            );
+        }
+
+        function triggerMansion() {
+            if (!inv.hasCrowbar && inv.gold < 10000) { 
+                showModal("MANSÃO TRANCADA", "Exige 10.000g para operários OU o Pé de Cabra!"); 
+                return; 
+            }
+            showModal("COFRE DA MANSÃO", "Preços de mercado: 200, 300, 300, 500, 800.\nQual é a MEDIANA?",
+                ["A) 200", "B) 420", "C) 300", "D) 500"],
+                (idx) => {
+                    if(idx === 2) { 
+                        inv.quests.mansionDone = true; inv.gold += 50000; map[10][49] = TERRAIN.PATH; updateHUD();
+                        showModal("🏆 VITÓRIA ÉPICA GOOGLE!", "Cofre aberto! Você dominou o Tratamento de Dados!\n(+50.000g)");
+                    } else takeDamage("SENHA INCORRETA. Dardo disparado!");
+                }
+            );
+        }
+
+        function enterInterior(type) {
+            player.savedWorldX = player.x;
+            player.savedWorldY = player.y;
+            currentScene = 'INTERIOR';
+            player.x = 5 * TILE;
+            player.y = 6 * TILE;
+
+            if(type === 'house') showModal("SUA CASA", "Você entrou na sua casa.");
+            else if(type === 'bank') showModal("BANCO TGDQ", "Você entrou no Banco da Cidade.");
+        }
+
+        function exitInterior() {
+            currentScene = 'WORLD';
+            player.x = player.savedWorldX;
+            player.y = player.savedWorldY + TILE;
+        }
+
+        function interact() {
+            let cx = player.x + player.width/2; let cy = player.y + player.height/2;
+            let tCol = Math.floor(cx / TILE) + player.faceX; let tRow = Math.floor(cy / TILE) + player.faceY;
+
+            if(currentScene === 'INTERIOR') {
+                if(tRow >= 7 || player.y >= 7*TILE) { exitInterior(); return; }
+            }
+
+            // NPCs
+            for (let npc of npcs) {
+                if (Math.hypot(cx - npc.x, cy - npc.y) < 65) {
+                    if (npc.type === 'buyer') openShop();
+                    else if (npc.type === 'smith') openSmithShop();
+                    else if (npc.type === 'banker') openBank();
+                    else if (npc.type === 'mayor') showModal("PREFEITO", "Visite a Ferraria para aprimorar ferramentas!");
+                    return;
+                }
+            }
+
+            let terr = (map[tRow] && map[tRow][tCol]);
+
+            // Portas
+            if (terr === TERRAIN.DOOR_HOUSE) { enterInterior('house'); return; }
+            if (terr === TERRAIN.DOOR_BANK) { enterInterior('bank'); return; }
+            if (terr === TERRAIN.DOOR_LIB) { inv.hasLibKey ? triggerLibrary() : showModal("TRANCADA", "Chave no Deserto Nordeste."); return; }
+            if (terr === TERRAIN.DOOR_MANSION) { inv.hasMansionKey ? triggerMansion() : showModal("SELADA", "Precisa da Chave, 10.000g ou Pé de Cabra!"); return; }
+
+            // Machado
+            if (selectedTool === 3) {
+                for (let i = 0; i < worldTrees.length; i++) {
+                    let t = worldTrees[i];
+                    if (t.x === tCol && t.y === tRow) {
+                        t.hp -= inv.axeTier; 
+                        if (t.hp <= 0) {
+                            if (t.type === 'normal') inv.wood += 3;
+                            else if (t.type === 'magic') inv.specialWood += 2;
+                            else if (t.type === 'palm') inv.goldenWood += 1;
+                            worldTrees.splice(i, 1); updateHUD();
+                        }
+                        return;
+                    }
+                }
+            }
+
+            // HORTA COM CUSTO FINANCEIRO (HOE_COST = 5g)
+            if(tCol < 0 || tCol >= COLS || tRow < 0 || tRow >= ROWS) return;
+            let crop = crops[tRow][tCol];
+
+            if (selectedTool === 0 && (terr === TERRAIN.GRASS || terr === TERRAIN.SAND || terr === TERRAIN.DARK_GRASS)) { 
+                if (inv.gold >= HOE_COST) {
+                    inv.gold -= HOE_COST;
+                    map[tRow][tCol] = TERRAIN.DIRT; 
+                    updateHUD();
+                } else {
+                    showModal("SEM OURO", `Arar o solo para criar horta custa ${HOE_COST}g por quadrado! Você não tem ouro suficiente.`);
+                }
+            }
+            else if (selectedTool === 1 && (terr === TERRAIN.DIRT || terr === TERRAIN.WET_DIRT) && !crop && inv.seeds > 0) { 
+                crops[tRow][tCol] = { type: 'normal', stage: 0, timer: 0 }; inv.seeds--; updateHUD();
+            }
+            else if (selectedTool === 4 && (terr === TERRAIN.DIRT || terr === TERRAIN.WET_DIRT) && !crop && inv.specialSeeds > 0) { 
+                crops[tRow][tCol] = { type: 'special', stage: 0, timer: 0 }; inv.specialSeeds--; updateHUD();
+            }
+            else if (selectedTool === 2 && terr === TERRAIN.DIRT) { map[tRow][tCol] = TERRAIN.WET_DIRT; }
+            else if (selectedTool === 3 && crop && crop.stage === 3) { 
+                crops[tRow][tCol] = null; map[tRow][tCol] = TERRAIN.DIRT; 
+                crop.type === 'normal' ? inv.wood += 2 : inv.specialWood += 2;
+                updateHUD();
+            }
+        }
+
+        function update() {
+            if(gameState !== 'PLAY') return;
+
+            let dx = 0; let dy = 0;
+            if (keys['w'] || keys['arrowup']) { dy = -1; player.faceX = 0; player.faceY = -1; }
+            if (keys['s'] || keys['arrowdown']) { dy = 1; player.faceX = 0; player.faceY = 1; }
+            if (keys['a'] || keys['arrowleft']) { dx = -1; player.faceX = -1; player.faceY = 0; }
+            if (keys['d'] || keys['arrowright']) { dx = 1; player.faceX = 1; player.faceY = 0; }
+            if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
+
+            let nextX = player.x + dx * player.speed; let nextY = player.y + dy * player.speed;
+            let cCol = Math.floor((nextX + player.width/2) / TILE); let cRow = Math.floor((nextY + player.height) / TILE); 
+
+            if (currentScene === 'WORLD') {
+                if (nextX >= 0 && nextX + player.width <= COLS * TILE && nextY >= 0 && nextY + player.height <= ROWS * TILE) {
+                    let terr = map[cRow][cCol];
+                    let hitTree = worldTrees.some(t => t.x === cCol && t.y === cRow);
+                    if (terr !== TERRAIN.WALL && terr !== TERRAIN.DOOR_LIB && terr !== TERRAIN.DOOR_MANSION && terr !== TERRAIN.WATER && !hitTree) {
+                        player.x = nextX; player.y = nextY;
+                    }
+                }
+            } else { 
+                if (nextX >= TILE && nextX <= 9*TILE && nextY >= TILE && nextY <= 8*TILE) {
+                    player.x = nextX; player.y = nextY;
+                }
+            }
+
+            for (let i = items.length - 1; i >= 0; i--) {
+                let item = items[i];
+                if (Math.hypot((player.x + 12) - (item.x*TILE + 20), (player.y + 16) - (item.y*TILE + 20)) < 30) {
+                    if (item.type === 'lib_key') {
+                        inv.hasLibKey = true; items.splice(i, 1); updateHUD();
+                        showModal("ITEM ENCONTRADO", "Chave da Biblioteca coletada nas areias!");
+                    }
+                }
+            }
+        }
+
+        setInterval(() => {
+            if(gameState !== 'PLAY') return;
+            for (let y = 0; y < ROWS; y++) {
+                for (let x = 0; x < COLS; x++) {
+                    let crop = crops[y][x];
+                    if (crop && crop.stage < 3 && map[y][x] === TERRAIN.WET_DIRT) {
+                        crop.timer++;
+                        if (crop.timer > 3) { crop.stage++; crop.timer = 0; map[y][x] = TERRAIN.DIRT; }
+                    }
+                }
+            }
+        }, 1000);
+
+        // --- RENDERIZAÇÃO MELHORADA (TEXTURAS E PROFLUNDIDADE) ---
+        function renderBuilding(b) {
+            let px = b.x * TILE; let py = b.y * TILE; let bw = b.w * TILE; let bh = b.h * TILE;
+            
+            // Sombra da Estrutura
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.fillRect(px + 10, py + bh, bw, 10);
+
+            // Parede com textura
+            ctx.fillStyle = b.type === 'house' ? '#c8ad7f' : (b.type === 'library' ? '#34495e' : (b.type === 'mansion' ? '#2c3e50' : (b.type === 'bank' ? '#27ae60' : '#d35400')));
+            ctx.fillRect(px, py + TILE, bw, bh - TILE);
+            
+            // Vigas de Madeira Decorativas
+            ctx.fillStyle = '#4a2311';
+            ctx.fillRect(px, py + TILE, 6, bh - TILE);
+            ctx.fillRect(px + bw - 6, py + TILE, 6, bh - TILE);
+
+            // Telhado em Camadas
+            ctx.fillStyle = b.type === 'house' ? '#a93226' : (b.type === 'library' ? '#7d3c98' : (b.type === 'mansion' ? '#f1c40f' : (b.type === 'bank' ? '#f39c12' : '#ba4a00')));
+            ctx.beginPath(); ctx.moveTo(px - 10, py + TILE); ctx.lineTo(px + bw / 2, py - 20); ctx.lineTo(px + bw + 10, py + TILE); ctx.fill();
+            
+            // Borda inferior do telhado
+            ctx.fillStyle = '#2c1609';
+            ctx.fillRect(px - 10, py + TILE - 2, bw + 20, 4);
+
+            // Janelas Iluminadas
+            ctx.fillStyle = '#f9e79f';
+            ctx.fillRect(px + 15, py + TILE + 15, 18, 18);
+            ctx.fillRect(px + bw - 33, py + TILE + 15, 18, 18);
+            ctx.fillStyle = '#2c1609';
+            ctx.fillRect(px + 23, py + TILE + 15, 2, 18);
+            ctx.fillRect(px + 15, py + TILE + 23, 18, 2);
+        }
+
+        function draw() {
+            ctx.save();
+            
+            if (currentScene === 'WORLD') {
+                let camX = canvas.width / 2 - player.x - player.width / 2;
+                let camY = canvas.height / 2 - player.y - player.height / 2;
+                ctx.translate(Math.floor(camX), Math.floor(camY));
+
+                ctx.clearRect(-1000, -1000, 5000, 5000);
+
+                let startCol = Math.max(0, Math.floor(-camX / TILE));
+                let endCol = Math.min(COLS, startCol + canvas.width / TILE + 2);
+                let startRow = Math.max(0, Math.floor(-camY / TILE));
+                let endRow = Math.min(ROWS, startRow + canvas.height / TILE + 2);
+
+                for (let y = startRow; y < endRow; y++) {
+                    for (let x = startCol; x < endCol; x++) {
+                        let px = x * TILE, py = y * TILE; let terr = map[y][x];
+
+                        if (terr === TERRAIN.GRASS || terr === TERRAIN.WALL || terr === TERRAIN.DOOR_LIB || terr === TERRAIN.DOOR_MANSION || terr === TERRAIN.DOOR_BANK || terr === TERRAIN.DOOR_HOUSE) { 
+                            ctx.fillStyle = '#4d882d'; ctx.fillRect(px, py, TILE, TILE); 
+                            ctx.fillStyle = '#569932'; ctx.fillRect(px+4, py+4, 4, 4); ctx.fillRect(px+24, py+16, 4, 4); // Textura Grama
+                        } 
+                        else if (terr === TERRAIN.DARK_GRASS) { ctx.fillStyle = '#1c2833'; ctx.fillRect(px, py, TILE, TILE); } 
+                        else if (terr === TERRAIN.SAND) { ctx.fillStyle = '#d6b265'; ctx.fillRect(px, py, TILE, TILE); } 
+                        else if (terr === TERRAIN.DIRT) { ctx.fillStyle = '#73441f'; ctx.fillRect(px, py, TILE, TILE); ctx.fillStyle = '#8c5326'; ctx.fillRect(px+2, py+2, TILE-4, TILE-4); }
+                        else if (terr === TERRAIN.WET_DIRT) { ctx.fillStyle = '#3b220f'; ctx.fillRect(px, py, TILE, TILE); ctx.fillStyle = '#4d2d14'; ctx.fillRect(px+2, py+2, TILE-4, TILE-4); }
+                        else if (terr === TERRAIN.PATH) { ctx.fillStyle = '#6e6e6e'; ctx.fillRect(px, py, TILE, TILE); ctx.fillStyle = '#7e7e7e'; ctx.fillRect(px+2, py+2, TILE-4, TILE-4); }
+
+                        let crop = crops[y][x];
+                        if (crop) {
+                            let cx = px + TILE/2, cy = py + TILE/2;
+                            let color = crop.type === 'normal' ? '#27ae60' : '#8e44ad'; 
+                            ctx.fillStyle = color;
+                            if (crop.stage === 0) { ctx.fillStyle = '#d4af37'; ctx.fillRect(cx-2, cy-2, 4, 4); }
+                            else if (crop.stage === 1) { ctx.fillRect(cx-4, cy-8, 8, 12); }
+                            else if (crop.stage === 2) { ctx.fillRect(cx-8, cy-16, 16, 24); }
+                            else if (crop.stage === 3) { ctx.fillStyle = '#54381a'; ctx.fillRect(cx-4, cy-4, 8, 10); ctx.fillStyle = color; ctx.beginPath(); ctx.arc(cx, cy-15, 16, 0, Math.PI*2); ctx.fill(); }
+                        }
+                    }
+                }
+
+                buildings.forEach(b => renderBuilding(b));
+                for (let y = startRow; y < endRow; y++) {
+                    for (let x = startCol; x < endCol; x++) {
+                        let t = map[y][x];
+                        if (t === TERRAIN.DOOR_LIB || t === TERRAIN.DOOR_MANSION || t === TERRAIN.DOOR_BANK || t === TERRAIN.DOOR_HOUSE) {
+                            ctx.fillStyle = '#3b1c0c'; ctx.fillRect(x*TILE+4, y*TILE, TILE-8, TILE);
+                            ctx.fillStyle = '#f1c40f'; ctx.fillRect(x*TILE+26, y*TILE+18, 5, 5); 
+                        }
+                    }
+                }
+
+                for (let t of worldTrees) {
+                    if(t.x >= startCol && t.x <= endCol && t.y >= startRow && t.y <= endRow) {
+                        let px = t.x * TILE, py = t.y * TILE;
+                        ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(px+20, py+35, 15, 5, 0, 0, Math.PI*2); ctx.fill(); // Sombra Árvore
+                        ctx.fillStyle = '#422d1d'; ctx.fillRect(px+16, py+18, 8, 18); 
+                        if(t.type === 'normal') ctx.fillStyle = '#229954';
+                        else if(t.type === 'magic') ctx.fillStyle = '#7d3c98';
+                        else ctx.fillStyle = '#f1c40f'; 
+                        
+                        if(t.type === 'palm') { ctx.beginPath(); ctx.ellipse(px+20, py+10, 22, 12, 0, 0, Math.PI*2); ctx.fill(); }
+                        else { ctx.beginPath(); ctx.arc(px+20, py+12, 18, 0, Math.PI*2); ctx.fill(); }
+                    }
+                }
+
+                for (let item of items) { ctx.fillStyle = item.color; ctx.fillRect(item.x*TILE + 14, item.y*TILE + 14, 12, 12); }
+
+                // NPCs Detalhados
+                let bounce = Math.sin(Date.now() / 200) * 3;
+                for (let npc of npcs) {
+                    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(npc.x+12, npc.y+30, 10, 4, 0, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = npc.color; ctx.fillRect(npc.x+4, npc.y + 14 + bounce, 16, 14); // Roupa
+                    ctx.fillStyle = '#f5cba7'; ctx.fillRect(npc.x+5, npc.y+3+bounce, 14, 11); // Rosto
+                    ctx.fillStyle = npc.hat; ctx.fillRect(npc.x-2, npc.y-3+bounce, 28, 7); // Chapéu
+                    ctx.fillStyle = '#000'; ctx.fillRect(npc.x+8, npc.y+7+bounce, 2, 2); ctx.fillRect(npc.x+14, npc.y+7+bounce, 2, 2); // Olhos
+                    ctx.fillStyle = '#fff'; ctx.font = '18px VT323'; ctx.fillText(npc.name, npc.x-10, npc.y-8 + bounce);
+                }
+
+                let tCol = Math.floor((player.x + player.width/2) / TILE) + player.faceX;
+                let tRow = Math.floor((player.y + player.height/2) / TILE) + player.faceY;
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)'; ctx.lineWidth = 2; ctx.strokeRect(tCol * TILE, tRow * TILE, TILE, TILE);
+
+            } else { 
+                ctx.fillStyle = '#110900'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#6e4429'; ctx.fillRect(2*TILE, 2*TILE, 8*TILE, 6*TILE); 
+                ctx.fillStyle = '#3b1c0c'; ctx.fillRect(2*TILE, 1*TILE, 8*TILE, 1*TILE); 
+                ctx.fillStyle = '#c0392b'; ctx.fillRect(4*TILE, 7*TILE, 2*TILE, 1*TILE); 
+                ctx.fillStyle = '#fff'; ctx.font = '22px VT323'; ctx.fillText("SAÍDA (Ande para baixo)", 4*TILE-20, 8*TILE+20);
+            }
+
+            // JOGADOR
+            let px = player.x, py = player.y;
+            ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(px+12, py+30, 10, 4, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#2471a3'; ctx.fillRect(px+4, py+16, 16, 14); 
+            ctx.fillStyle = '#922b21'; ctx.fillRect(px+6, py+12, 12, 8); 
+            ctx.fillStyle = '#f5cba7'; ctx.fillRect(px+4, py+2, 16, 12); 
+            ctx.fillStyle = '#6c3483'; ctx.fillRect(px+2, py, 20, 4); ctx.fillRect(px+6, py-4, 12, 4); 
+
+            ctx.restore(); 
+        }
+
+        function loop() { update(); draw(); requestAnimationFrame(loop); }
+        
+        updateHUD(); 
+        loop();
+    </script>
+</body>
+</html>
